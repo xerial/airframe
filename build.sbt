@@ -75,10 +75,10 @@ lazy val airframeRoot =
   Project(id = "airframe-root", base = file("."))
     .settings(buildSettings)
     .settings(noPublish)
-    .aggregate(airframeJVM, airframeMacrosJVM, airframeJS, airframeMacrosJS, surfaceJVM, surfaceJS, airframeConfig, jmx, logJVM, logJS, opts)
+    .aggregate(airframeJVM, airframeMacrosJVM, airframeJS, airframeMacrosJS, surfaceJVM, surfaceJS, airframeConfig, jmx, logJVM, logJS, opts, airframeFluentd)
 
 lazy val projectJVM =
-  project.settings(noPublish).aggregate(airframeJVM, surfaceJVM, airframeConfig, jmx, logJVM, opts)
+  project.settings(noPublish).aggregate(airframeJVM, surfaceJVM, airframeConfig, jmx, logJVM, opts, airframeFluentd)
 
 lazy val projectJS =
   project.settings(noPublish).aggregate(airframeJS, surfaceJS, logJS)
@@ -258,3 +258,14 @@ lazy val log =
 
 lazy val logJVM = log.jvm
 lazy val logJS  = log.js
+
+lazy val airframeFluentd =
+  Project(id = "airframe-fluentd", base = file("airframe-fluentd"))
+  .settings(buildSettings)
+  .settings(
+    description := "Airframe-based fluentd-client",
+    libraryDependencies ++= Seq(
+      "org.komamitsu" % "fluency" % "1.4.0"
+    )
+  )
+  .dependsOn(airframeJVM, airframeMacrosJVM % "compile-internal,test-internal")

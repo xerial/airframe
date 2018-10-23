@@ -366,7 +366,7 @@ lazy val opts =
         "org.scala-lang.modules" %% "scala-parser-combinators" % SCALA_PARSER_COMBINATOR_VERSION
       )
     )
-    .dependsOn(surfaceJVM, airframeSpecJVM % "test")
+    .dependsOn(airframeJVM, airframeMacrosJVM % "compile-internal,test-internal", airframeSpecJVM % "test")
 
 // airframe-log should have minimum dependencies
 lazy val log =

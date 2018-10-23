@@ -42,9 +42,14 @@ public @interface option {
     String description() default "";
 
     /**
+     * If this option is the default command, set this true (default: false). You can have only a single command.
+     * @return
+     */
+    boolean isDefault() default false;
+
+    /**
      * If this option is used as a switch to display help messages of commands, set this value to true.
      */
     boolean isHelp() default false;
 }
-
 

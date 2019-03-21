@@ -1,7 +1,7 @@
 import sbtcrossproject.{CrossType, crossProject}
 
 val SCALA_2_12 = "2.12.8"
-val SCALA_2_13 = "2.13.0-M5"
+val SCALA_2_13 = "2.13.0-pre-81ad83d"
 val SCALA_2_11 = "2.11.12"
 
 val untilScala2_12      = SCALA_2_12 :: SCALA_2_11 :: Nil
@@ -65,6 +65,9 @@ val buildSettings = Seq[Setting[_]](
   ),
   developers := List(
     Developer(id = "leo", name = "Taro L. Saito", email = "leo@xerial.org", url = url("http://xerial.org/leo"))
+  ),
+  resolvers ++= Seq(
+    "scala-integration" at "https://scala-ci.typesafe.com/artifactory/scala-integration/"
   )
 )
 

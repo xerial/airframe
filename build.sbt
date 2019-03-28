@@ -1,7 +1,7 @@
 import sbtcrossproject.{CrossType, crossProject}
 
 val SCALA_2_12 = "2.12.8"
-val SCALA_2_13 = "2.13.0-pre-81ad83d"
+val SCALA_2_13 = "2.13.0-pre-59975bb"
 val SCALA_2_11 = "2.11.12"
 
 val untilScala2_12      = SCALA_2_12 :: SCALA_2_11 :: Nil

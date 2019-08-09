@@ -21,9 +21,10 @@ import wvlet.log.LogSupport
 /**
   *
   */
+@InjectMethodSurface
 class TestJSSpec extends AirSpec with LogSupport {
   // This line is necessary for Scala.js
-  override private[spec] def methodSurfaces = Surface.methodsOf[TestJSSpec]
+  //override private[spec] def methodSurfaces = Surface.methodsOf[TestJSSpec]
 
   override protected def beforeAll(design: Design): Design = {
     design
@@ -37,6 +38,7 @@ class TestJSSpec extends AirSpec with LogSupport {
   def `natural method name test`: Unit = {
     info("hello symbol name tests")
   }
+
 }
 
 class `Flexible test spec name` extends AirSpec {

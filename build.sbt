@@ -110,6 +110,10 @@ lazy val root =
     .settings(name := "airframe-root")
     .settings(buildSettings)
     .settings(noPublish)
+    .settings(
+      // SCALA env var must be set by Travis CI script to distinguish bundles to upload
+      sonatypeSessionName := s"[sbt-sonatype] ${name.value}-${sys.env.getOrElse("SCALA", scalaBinaryVersion.value)}-${version.value}"
+    )
     .aggregate(scaladoc)
     .aggregate((jvmProjects ++ jvmProjects2_12 ++ jsProjects): _*)
 
@@ -818,7 +822,7 @@ val airspecJVMBuildSettings = Seq[Setting[_]](
   }
 )
 
-val airspecJSBuildSettings = Seq[Setting[_]](
+val airspecJSBuildSettings = jsBuildSettings ++ Seq[Setting[_]](
   unmanagedSourceDirectories in Compile ++= {
     val baseDir = (ThisBuild / baseDirectory).value.getAbsoluteFile
     val sv      = scalaBinaryVersion.value
@@ -939,6 +943,7 @@ lazy val airspec =
       )
     )
     .jsSettings(
+      jsBuildSettings,
       mappings in (Compile, packageBin) ++= mappings
         .in(airspecDepsJS, Compile, packageBin).value.filter(x => x._2 != "JS_DEPENDENCIES"),
       mappings in (Compile, packageSrc) ++= mappings.in(airspecDepsJS, Compile, packageSrc).value,

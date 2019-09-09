@@ -81,7 +81,22 @@ jobs:
       before_script: psql -c 'create database travis_ci_test;' -U postgres
       script: ./sbt ++$SCALA_VERSION ${PROJECT}/test
     - stage: release
-      env: PROJECT=publish
+      env: PROJECT=publish SCALA=2.12
+      jdk: openjdk8
+      script:
+        - cd $TRAVIS_BUILD_DIR && ./scripts/publish.sh
+    - stage: release
+      env: PROJECT=publish SCALA=2.13
+      jdk: openjdk8
+      script:
+        - cd $TRAVIS_BUILD_DIR && ./scripts/publish.sh
+    - stage: release
+      env: PROJECT=publish SCALA=2.11
+      jdk: openjdk8
+      script:
+        - cd $TRAVIS_BUILD_DIR && ./scripts/publish.sh
+    - stage: release
+      env: PROJECT=publish SCALA=js
       jdk: openjdk8
       script:
         - cd $TRAVIS_BUILD_DIR && ./scripts/publish.sh

@@ -394,6 +394,7 @@ private[airframe] class AirframeSession(
       }
       .orElse {
         // Use the provided object factory if exists
+        // TODO: We need to pass `seen` Surface list to the factory to detect cyclic dependencies between
         defaultValue.map { f =>
           trace(s"[${name}] Using the default value for ${tpe}")
           f()

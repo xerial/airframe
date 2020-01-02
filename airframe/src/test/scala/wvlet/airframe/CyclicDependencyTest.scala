@@ -1,6 +1,7 @@
 package wvlet.airframe
 
 import wvlet.airspec._
+import wvlet.airframe.AirframeException.CYCLIC_DEPENDENCY
 
 object CyclicDependencyTest extends AirSpec {
 

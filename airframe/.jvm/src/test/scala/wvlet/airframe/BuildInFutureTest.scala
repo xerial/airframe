@@ -13,9 +13,14 @@
  */
 package wvlet.airframe
 
+import java.util.concurrent.Executors
+
+import wvlet.airframe.surface.Surface
 import wvlet.airspec.AirSpec
+import wvlet.log.{LogLevel, Logger}
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 
@@ -24,10 +29,36 @@ case class Config2()
 
 class BuildInFutureTest extends AirSpec {
 
+  private val ex               = Executors.newCachedThreadPool()
+  private implicit val context = ExecutionContext.fromExecutor(ex)
+
+  def `capture Surface.of[X] inside Future`: Unit = {
+    val cl = Thread.currentThread().getContextClassLoader.loadClass()
+    def loop(cl: ClassLoader, indent: Int = 0): Unit = {
+      println(s"${" " * indent}-${cl.getClass}")
+      cl.getParent match {
+        case null =>
+        case p: ClassLoader =>
+          loop(p, indent + 1)
+      }
+    }
+
+    loop(cl)
+    val f = Future {
+      val cl = Thread.currentThread().getContextClassLoader
+      warn(s"within Future")
+      loop(cl)
+      Surface.of[Config1]
+    }
+
+    val ret = Await.result(f, Duration.Inf)
+    ret.name shouldBe "Config1"
+  }
+
   def `Building in Future causes MISSING_DEPENDENCY` = {
     val f = Future {
-      newDesign.build[Config1] { config =>
-        println(config)
+      newSilentDesign.build[Config1] { config =>
+        debug(config)
       }
     }
     Await.result(f, Duration.Inf)
@@ -35,10 +66,10 @@ class BuildInFutureTest extends AirSpec {
 
   def `Building in Future causes java.lang.ClassCastException` = {
     val f = Future {
-      newDesign
+      newSilentDesign
         .bind[Config2].toInstance(Config2())
         .build[Config1] { config =>
-          println(config)
+          debug(config)
         }
     }
     Await.result(f, Duration.Inf)

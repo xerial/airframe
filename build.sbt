@@ -59,7 +59,8 @@ val buildSettings = Seq[Setting[_]](
   testFrameworks += airSpecFramework,
   libraryDependencies ++= Seq(
     "org.scala-lang.modules" %%% "scala-collection-compat" % "2.1.3"
-  )
+  ),
+  Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat
 )
 
 // Do not run tests concurrently to avoid JMX registration failures

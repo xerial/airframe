@@ -148,11 +148,13 @@ object ReflectSurfaceFactory extends LogSupport {
   }
 
   private[surface] def mirror = ru.runtimeMirror(Thread.currentThread.getContextClassLoader)
+
   private def resolveClass(tpe: ru.Type): Class[_] = {
     try {
       mirror.runtimeClass(tpe)
     } catch {
-      case e: Throwable => classOf[Any]
+      case e: Throwable =>
+        classOf[Any]
     }
   }
 

@@ -12,11 +12,12 @@
  * limitations under the License.
  */
 package wvlet.airspec.runner
-import sbt.testing.TaskDef
+import sbt.testing.{OptionalThrowable, TaskDef}
 import wvlet.airframe._
-import wvlet.airspec.{AirSpecDef, AirSpecSpi}
-import wvlet.airspec.spi.AirSpecContext
+import wvlet.airspec.{AirSpecDef, AirSpecSpi, compat}
+import wvlet.airspec.spi.{AirSpecContext, AirSpecException}
 
+import scala.concurrent.Future
 import scala.util.Try
 
 /**
@@ -87,13 +88,32 @@ object AirSpecExecutor {
           Task(spec.pushContext(context))
             .onFinish(_ => spec.popContext)
             .andThen {
-              Task {
-                specDef.run(context, childSession)
-                // TODO:  If the test method had any child task, update the flag
-                // hadChildTask |= context.hasChildTask
+              val result = specDef.run(context, childSession)
+              result match {
+                case f: Future[_] => Task.fromFuture(f)
+                case _            => Task(result)
               }
+              // TODO:  If the test method had any child task, update the flag
+              // hadChildTask |= context.hasChildTask
             }
         }
+    }
+
+    startSpec { globalSession: Session =>
+      val childTasks = for (m <- targetDefs) yield {
+        runTest(globalSession, m)
+      }
+      Task.sequence(childTasks)
+    }.onFailure {
+      case e: Throwable =>
+        //taskLogger.logSpecName(leafName, indentLevel = 0)
+        val cause  = compat.findCause(e)
+        val status = AirSpecException.classifyException(cause)
+        // Unknown error
+        val event =
+          AirSpecEvent(taskDef, "<spec>", status, new OptionalThrowable(cause), System.nanoTime() - startTimeNanos)
+      //taskLogger.logEvent(event)
+      //eventHandler.handle(event)
     }
 
 //          Task(spec.callBefore).onFinish(_ => spec.callAfter)

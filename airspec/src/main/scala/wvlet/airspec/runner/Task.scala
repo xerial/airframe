@@ -48,6 +48,10 @@ object Task {
     }
   }
 
+  def sequence(tasks: Seq[Task[_]]): Task[_] = {
+    tasks.reduce((t1, t2) => t1.andThen(t2))
+  }
+
   def withResource[R <: AutoCloseable, A](init: => R)(f: R => Task[A]): Task[A] =
     new WithResource[R, A](resource = () => init, body = f)
 

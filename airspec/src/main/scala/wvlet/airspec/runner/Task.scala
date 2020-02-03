@@ -14,7 +14,7 @@
 package wvlet.airspec.runner
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 import scala.util.control.NonFatal
 
 /**
@@ -24,15 +24,17 @@ trait Cancelable {
   def cancel: Unit = {}
 }
 
-trait Task[A] extends Cancelable {
+trait Task[+A] extends Cancelable {
   import Task._
 
   def eval(implicit context: ExecutionContext): Future[A]
-  def map[B](f: A => B): Task[B]           = MapOp(this, f)
-  def flatMap[B](f: A => Task[B]): Task[B] = FlatMapOp(this, f)
-  def andThen[B](next: Task[B]): Task[B]   = new Task.AndThen(this, next)
+  def map[B](f: A => B): Task[B]               = MapOp(this, f)
+  def flatMap[B](f: A => Task[B]): Task[B]     = FlatMapOp(this, f)
+  def andThen[B](next: Task[B]): Task[B]       = AndThen(this, next)
+  def onFinish[U](f: A => U): Task[A]          = OnFinish(this, f)
+  def onFailure[U](f: Throwable => U): Task[A] = OnFailure(this, f)
 
-  //def withResource[R <: AutoCloseable, B](r: A => R)(f: R => Task[B]): Task[B] = WithResource(resource)
+  def withResource[R <: AutoCloseable, B](r: => R)(f: R => Task[B]): Task[B] = WithResource(() => r, f)
   //def rescue[U](pf: PartialFunction[Throwable, U]): Task[In, U]
 }
 
@@ -88,9 +90,40 @@ object Task {
       body(r).eval.onComplete {
         case Success(a) =>
           p.success(a)
+          r.close()
         case Failure(e) =>
           p.failure(e)
           r.close()
+      }
+      p.future
+    }
+  }
+
+  private case class OnFinish[A, U](task: Task[A], onComplete: A => U) extends Task[A] {
+    override def eval(implicit context: ExecutionContext): Future[A] = {
+      val p = Promise[A]()
+
+      task.eval.onComplete {
+        case Success(a) =>
+          p.success(a)
+          onComplete(a)
+        case Failure(e) =>
+          p.failure(e)
+      }
+      p.future
+    }
+  }
+
+  private case class OnFailure[A, U](task: Task[A], onFailure: Throwable => U) extends Task[A] {
+    override def eval(implicit context: ExecutionContext): Future[A] = {
+      val p = Promise[A]()
+
+      task.eval.onComplete {
+        case Success(a) =>
+          p.success(a)
+        case Failure(e) =>
+          p.failure(e)
+          onFailure(e)
       }
       p.future
     }

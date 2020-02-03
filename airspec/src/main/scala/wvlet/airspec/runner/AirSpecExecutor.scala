@@ -14,8 +14,10 @@
 package wvlet.airspec.runner
 import sbt.testing.TaskDef
 import wvlet.airframe._
-import wvlet.airspec.AirSpecSpi
-import wvlet.log.LogFormatter.SourceCodeLogFormatter
+import wvlet.airspec.{AirSpecDef, AirSpecSpi}
+import wvlet.airspec.spi.AirSpecContext
+
+import scala.util.Try
 
 /**
   *
@@ -50,35 +52,62 @@ object AirSpecExecutor {
 //
 //  }
 
-//  def run(spec: AirSpecSpi): Unit = {
-//    Task(newSilentDesign + spec.callDesign)
-//      .withResource(_.newSession){ session: Session =>
-//        Task(spec.callBeforeAll)
-//          .andThen()
+  def run(parentContext: Option[AirSpecContext], spec: AirSpecSpi, targetDefs: Seq[AirSpecDef]): Task[_] = {
+
+    def init = Task(spec.callBeforeAll).onFinish(_ => spec.callAfterAll)
+
+    def startSpec[A](f: Session => Task[A]): Task[A] = init.andThen {
+      val globalDesign = Design.newDesign.noLifeCycleLogging + spec.callDesign
+      Task.withResource {
+        val s = parentContext
+          .map(_.currentSession.newChildSession(globalDesign))
+          .getOrElse(globalDesign.newSessionBuilder.noShutdownHook.build)
+        s.start
+        s
+      } { globalSession: Session =>
+        f(globalSession)
+      }
+    }
+
+    def runTest(globalSession: Session, specDef: AirSpecDef): Task[_] = {
+      val localDesign = spec.callLocalDesign + specDef.design
+      Task(spec.callBefore)
+        .onFinish(_ => spec.callAfter)
+        .withResource {
+          globalSession.newChildSession(localDesign)
+        } { childSession: Session =>
+          val context =
+            new AirSpecContextImpl(
+              null, //this,
+              parentContext = parentContext,
+              currentSpec = spec,
+              testName = specDef.name,
+              currentSession = childSession
+            )
+          Task(spec.pushContext(context))
+            .onFinish(_ => spec.popContext)
+            .andThen {
+              Task {
+                specDef.run(context, childSession)
+                // TODO:  If the test method had any child task, update the flag
+                // hadChildTask |= context.hasChildTask
+              }
+            }
+        }
+    }
+
+//          Task(spec.callBefore).onFinish(_ => spec.callAfter)
+//            .andThen {
+//              val localDesign = spec.callLocalDesign + m.design
+//              Task.withResource{
+//                globalSession.newChildSession(childDesign)
 //
-//      }
-//      .withResource {
-//
-//      } { session: Session =>
-//        spec.callBeforeAll
-//        session
-//      }
-//      .map {
+//              }
 //
 //
-//      }
-//      .andThen(
-//        val childDesign =
-//
-//      )
-//        spec.callBefore
-//      }.andThen {
-//
-//
-//    }.andThen {
-//        spec.callAfter
-//        spec.callAfterAll
-//      }
-//  }
+//            }
+
+    null
+  }
 
 }

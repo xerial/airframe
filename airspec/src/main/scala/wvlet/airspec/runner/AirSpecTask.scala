@@ -19,7 +19,8 @@ import wvlet.airspec.runner.AirSpecSbtRunner.AirSpecConfig
 import wvlet.log.LogSupport
 
 import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Promise}
+import scala.concurrent.{Await, Future, Promise}
+import scala.util.{Failure, Success}
 
 /**
   * AirSpecTask is a unit of test execution.
@@ -60,10 +61,21 @@ private[airspec] class AirSpecTask(
       loggers: Array[sbt.testing.Logger],
       continuation: Array[sbt.testing.Task] => Unit
   ): Unit = {
-    try {
-      new AirSpecTaskRunner(taskDef, config, taskLogger, eventHandler, classLoader).runTask
-    } finally {
-      continuation(Array.empty)
-    }
+    implicit val ec = scala.concurrent.ExecutionContext.global
+
+    val p = Promise[Unit]()
+    Future
+      .apply {
+        // TODO support returning Future
+        new AirSpecTaskRunner(taskDef, config, taskLogger, eventHandler, classLoader).runTask
+      }
+      .onComplete {
+        case Success(a) =>
+          p.success(a)
+        case Failure(e) =>
+          p.failure(e)
+      }
+
+    p.future.onComplete(_ => continuation(Array.empty))
   }
 }

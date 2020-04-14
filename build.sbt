@@ -41,6 +41,10 @@ Global / onChangedBuildSource := ReloadOnSourceChanges
 scalaVersion in ThisBuild := SCALA_2_12
 organization in ThisBuild := "org.wvlet.airframe"
 
+githubOwner in ThisBuild := "wvlet"
+githubRepository in ThisBuild := "airframe"
+githubTokenSource := TokenSource.Environment("GITHUB_TOKEN")
+
 // Use dynamic snapshot version strings for non tagged versions
 dynverSonatypeSnapshots in ThisBuild := true
 

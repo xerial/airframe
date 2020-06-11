@@ -127,4 +127,79 @@ package object html {
   }
 
   implicit def embedAsNode[A: EmbeddableNode](v: A): RxElement = Embedded(v)
+
+  /**
+    * Wraps up a CSS style in a value.
+    */
+  case class Style(jsName: String, cssName: String) {
+
+    /**
+      * Creates an [[StylePair]] from an [[Style]] and a value of type [[T]], if
+      * there is an [[StyleValue]] of the correct type.
+      */
+    def ->[Builder, T](v: T)(implicit ev: StyleValue[Builder, T]) = {
+      require(v != null)
+      StylePair(this, v, ev)
+    }
+  }
+
+  /**
+    * A [[Style]], it's associated value, and a [[StyleValue]] of the correct type
+    */
+  case class StylePair[Builder, T](s: Style, v: T, ev: StyleValue[Builder, T]) { //extends Modifier[Builder] {
+    override def applyTo(t: Builder): Unit = {
+      ev.apply(t, s, v)
+    }
+  }
+
+  /**
+    * Used to specify how to handle a particular type [[T]] when it is used as
+    * the value of a [[Style]]. Only types with a specified [[StyleValue]] may
+    * be used.
+    */
+  @implicitNotFound(
+    "No StyleValue defined for type ${T}; scalatags does not know how to use ${T} as an style"
+  )
+  trait StyleValue[Builder, T] {
+    def apply(t: Builder, s: Style, v: T): Unit
+  }
+
+  @implicitNotFound(
+    "No PixelStyleValue defined for type ${T}; scalatags does not know how to use ${T} as an style"
+  )
+  trait PixelStyleValue[Builder, T] {
+    def apply(s: Style, v: T): StylePair[Builder, _]
+  }
+
+  /**
+    * Wraps up a CSS style in a value.
+    */
+  case class PixelStyle(jsName: String, cssName: String) {
+    val realStyle = Style(jsName, cssName)
+
+    /**
+      * Creates an [[StylePair]] from an [[Style]] and a value of type [[T]], if
+      * there is an [[StyleValue]] of the correct type.
+      */
+    def ->[Builder, T](v: T)(implicit ev: PixelStyleValue[Builder, T]) = {
+      require(v != null)
+      ev(realStyle, v)
+    }
+
+  }
+  trait StyleProcessor {
+    def apply[T](t: T): String
+  }
+
+  /**
+    * Used to specify how to handle a particular type [[T]] when it is used as
+    * the value of a [[HtmlAttribute]]. Only types with a specified [[HtmlAttribute]] may
+    * be used.
+    */
+  @implicitNotFound(
+    "No AttrValue defined for type ${T}; scalatags does not know how to use ${T} as an attribute"
+  )
+  trait AttrValue[Builder, T] {
+    def apply(t: Builder, a: HtmlAttribute, v: T): Unit
+  }
 }

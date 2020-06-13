@@ -101,8 +101,7 @@ class Index extends React.Component {
         const FeatureCallout = () => (
             <Container
                 padding={['bottom', 'top']}
-                background="light"
-                className="twoColumn">
+                background="light">
                 <div>
                     <img width='200px' src={`${baseUrl}img/logos/airframe-logo-tr.png`} alt="Project Logo"/>
                 </div>
@@ -110,7 +109,7 @@ class Index extends React.Component {
         );
 
         const Features = ({background = 'light'}) => (
-            <Block layout="threeColumn">
+            <Block layout="twoColumn">
                 {[
                     {
                         content: 'If you need a Scala-version of [slf4](http://slf4j.org/) (logging), [Jackson](https://github.com/FasterXML/jackson) (JSON-based serialization), [Guice](https://github.com/google/guice) (dependency injection), etc., Airframe will be a right choice for you. Airframe has redesigned these Java-based ecosystem in order to maximize the power of Scala, and supports Scala 2.11, 2.12, 2.13, and Scala.js as well.',

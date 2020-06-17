@@ -53,14 +53,16 @@ object ReflectTypeUtil extends LogSupport {
     }
   }
 
-  private[reflect] def access[A <: jr.AccessibleObject, B](f: A)(body: => B): B = {
+  private[reflect] def access[A <: jr.Field](f: A, obj: Any): AnyRef = {
     synchronized {
-      val accessible = f.isAccessible
+      // Can access only works for Java9. Until Spark will be migrated to 3.x + JDK 9 or higher
+      // we cannot use this code
+      val accessible = f.canAccess(obj)
       try {
         if (!accessible) {
           f.setAccessible(true)
         }
-        body
+        f.get(obj)
       } finally {
         if (!accessible) {
           f.setAccessible(false)
@@ -70,9 +72,7 @@ object ReflectTypeUtil extends LogSupport {
   }
 
   def readField(obj: Any, f: jr.Field): Any = {
-    access(f) {
-      f.get(obj)
-    }
+    access(f, obj)
   }
 
   def canBuildFromBuffer(s: Surface): Boolean = isArray(s) || isSeq(s.rawType) || isMap(s.rawType) || isSet(s.rawType)

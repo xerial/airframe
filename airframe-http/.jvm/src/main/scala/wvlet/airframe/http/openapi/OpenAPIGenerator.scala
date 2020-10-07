@@ -13,6 +13,7 @@
  */
 package wvlet.airframe.http.openapi
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 import wvlet.airframe.http.{HttpMethod, HttpStatus, Router}
 import wvlet.airframe.http.codegen.RouteAnalyzer
@@ -104,7 +105,7 @@ private[openapi] object OpenAPIGenerator extends LogSupport {
           required = requiredParams(routeAnalysis.userInputParameters),
           properties = Some(
             routeAnalysis.httpClientCallInputs.map { p =>
-              p.name -> getOpenAPISchema(p.surface, useRef = true)
+              p.name -> getOpenAPISchema(p.surface, useRef = true, Set.empty)
             }.toMap
           )
         )
@@ -133,7 +134,7 @@ private[openapi] object OpenAPIGenerator extends LogSupport {
           case s if isPrimitiveTypeFamily(s) =>
           // Do not register schema
           case _ =>
-            referencedSchemas += sanitizedSurfaceName(s) -> getOpenAPISchema(s, useRef = false)
+            referencedSchemas += sanitizedSurfaceName(s) -> getOpenAPISchema(s, useRef = false, Set.empty)
         }
       }
 
@@ -151,7 +152,7 @@ private[openapi] object OpenAPIGenerator extends LogSupport {
             in = in,
             required = true,
             schema = if (isPrimitiveTypeFamily(p.surface)) {
-              Some(getOpenAPISchema(p.surface, useRef = false))
+              Some(getOpenAPISchema(p.surface, useRef = false, Set.empty))
             } else {
               registerComponent(p.surface)
               Some(SchemaRef(s"#/components/schemas/${sanitizedSurfaceName(p.surface)}"))
@@ -183,7 +184,7 @@ private[openapi] object OpenAPIGenerator extends LogSupport {
         Map.empty
       } else {
         val responseSchema = if (isPrimitiveTypeFamily(route.returnTypeSurface)) {
-          getOpenAPISchema(route.returnTypeSurface, useRef = false)
+          getOpenAPISchema(route.returnTypeSurface, useRef = false, Set.empty)
         } else {
           SchemaRef(s"#/components/schemas/${returnTypeName}")
         }
@@ -243,7 +244,19 @@ private[openapi] object OpenAPIGenerator extends LogSupport {
     )
   }
 
-  def getOpenAPISchema(s: Surface, useRef: Boolean): SchemaOrRef = {
+  import scala.jdk.CollectionConverters._
+  private val schemaCache = new ConcurrentHashMap[String, SchemaOrRef]().asScala
+
+  def getOpenAPISchema(s: Surface, useRef: Boolean, seen: Set[Surface]): SchemaOrRef = {
+    if (seen.contains(s)) {
+      warn(s"Recursive type: ${s}")
+      Schema(`type` = "string")
+    } else {
+      schemaCache.getOrElseUpdate(s.fullName, findOpenAPISchema(s, useRef, seen))
+    }
+  }
+
+  private def findOpenAPISchema(s: Surface, useRef: Boolean, seen: Set[Surface]): SchemaOrRef = {
     s match {
       case Primitive.Unit =>
         Schema(
@@ -278,11 +291,11 @@ private[openapi] object OpenAPIGenerator extends LogSupport {
         // just use string type:
         Schema(`type` = "string")
       case o: OptionSurface =>
-        getOpenAPISchema(o.elementSurface, useRef)
+        getOpenAPISchema(o.elementSurface, useRef, seen + s)
       case s: Surface if Router.isFuture(s) =>
-        getOpenAPISchema(Router.unwrapFuture(s), useRef)
+        getOpenAPISchema(Router.unwrapFuture(s), useRef, seen + s)
       case s: Surface if Router.isFinagleReader(s) =>
-        getOpenAPISchema(s.typeArgs(0), useRef)
+        getOpenAPISchema(s.typeArgs(0), useRef, seen + s)
       case r: Surface if Router.isHttpResponse(r) =>
         // Use just string if the response type is not given
         Schema(`type` = "string")
@@ -290,19 +303,19 @@ private[openapi] object OpenAPIGenerator extends LogSupport {
         Schema(
           `type` = "object",
           additionalProperties = Some(
-            getOpenAPISchema(g.typeArgs(1), useRef)
+            getOpenAPISchema(g.typeArgs(1), useRef, seen + s)
           )
         )
       case a: ArraySurface =>
         Schema(
           `type` = "array",
-          items = Some(getOpenAPISchema(a.elementSurface, useRef))
+          items = Some(getOpenAPISchema(a.elementSurface, useRef, seen + s))
         )
       case s: Surface if s.isSeq =>
         Schema(
           `type` = "array",
           items = Some(
-            getOpenAPISchema(s.typeArgs.head, useRef)
+            getOpenAPISchema(s.typeArgs.head, useRef, seen + s)
           )
         )
       case s: Surface if useRef =>
@@ -311,7 +324,7 @@ private[openapi] object OpenAPIGenerator extends LogSupport {
         // Use ListMap for preserving parameter orders
         val b = ListMap.newBuilder[String, SchemaOrRef]
         g.params.foreach { p =>
-          b += p.name -> getOpenAPISchema(p.surface, useRef)
+          b += p.name -> getOpenAPISchema(p.surface, useRef, seen + g)
         }
         val properties = b.result()
 

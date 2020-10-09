@@ -18,9 +18,17 @@ import wvlet.airspec.AirSpec
 
 /**
   */
-class OpenAPIGeneratorTest extends AirSpec {
+object OpenAPIGeneratorTest extends AirSpec {
   test("Support DataType") {
     val schema = OpenAPIGenerator.getOpenAPISchema(Surface.of[ElapsedTime], false, Set.empty)
     info(schema)
   }
+
+  case class Resp(code: Int, message: String)
+
+  test("Seq[Object]") {
+    val schema = OpenAPIGenerator.getOpenAPISchema(Surface.of[Seq[Resp]], false, Set.empty)
+    info(schema)
+  }
+
 }

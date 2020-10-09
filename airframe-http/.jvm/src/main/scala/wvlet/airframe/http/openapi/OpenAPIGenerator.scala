@@ -47,14 +47,18 @@ private[openapi] object OpenAPIGenerator extends LogSupport {
   /**
     * Sanitize the given class name as Open API doesn't support names containing $
     */
-  private def sanitizedSurfaceName(s: Surface): String = {
+  private def unwrapAndSanitizedSurfaceName(s: Surface): String = {
     s match {
       case o: OptionSurface =>
-        sanitizedSurfaceName(o.elementSurface)
+        unwrapAndSanitizedSurfaceName(o.elementSurface)
+      case s if s.isSeq =>
+        unwrapAndSanitizedSurfaceName(s.typeArgs(0))
+      case a: ArraySurface =>
+        unwrapAndSanitizedSurfaceName(a.elementSurface)
       case r: Surface if Router.isFinagleReader(r) =>
-        sanitizedSurfaceName(r.typeArgs(0))
+        unwrapAndSanitizedSurfaceName(r.typeArgs(0))
       case s: Surface if Router.isFuture(s) =>
-        sanitizedSurfaceName(Router.unwrapFuture(s))
+        unwrapAndSanitizedSurfaceName(Router.unwrapFuture(s))
       case other =>
         other.fullName.replaceAll("\\$", ".")
     }
@@ -67,6 +71,10 @@ private[openapi] object OpenAPIGenerator extends LogSupport {
     s match {
       case s if s.isPrimitive => true
       case o: OptionSurface   => o.elementSurface.isPrimitive
+      case a: ArraySurface =>
+        isPrimitiveTypeFamily(a.elementSurface)
+      case s if s.isSeq =>
+        isPrimitiveTypeFamily(s.typeArgs(0))
       case f: Surface if Router.isFuture(f) =>
         isPrimitiveTypeFamily(Router.unwrapFuture(f))
       case r: Surface if Router.isHttpResponse(r) =>
@@ -134,7 +142,7 @@ private[openapi] object OpenAPIGenerator extends LogSupport {
           case s if isPrimitiveTypeFamily(s) =>
           // Do not register schema
           case _ =>
-            referencedSchemas += sanitizedSurfaceName(s) -> getOpenAPISchema(s, useRef = false, Set.empty)
+            referencedSchemas += unwrapAndSanitizedSurfaceName(s) -> getOpenAPISchema(s, useRef = false, Set.empty)
         }
       }
 
@@ -142,7 +150,7 @@ private[openapi] object OpenAPIGenerator extends LogSupport {
       routeAnalysis.httpClientCallInputs.foreach { p =>
         registerComponent(p.surface)
       }
-      val returnTypeName = sanitizedSurfaceName(route.returnTypeSurface)
+      val returnTypeName = unwrapAndSanitizedSurfaceName(route.returnTypeSurface)
       registerComponent(route.returnTypeSurface)
 
       def toParameter(p: MethodParameter, in: In): ParameterOrRef = {
@@ -155,12 +163,12 @@ private[openapi] object OpenAPIGenerator extends LogSupport {
               Some(getOpenAPISchema(p.surface, useRef = false, Set.empty))
             } else {
               registerComponent(p.surface)
-              Some(SchemaRef(s"#/components/schemas/${sanitizedSurfaceName(p.surface)}"))
+              Some(SchemaRef(s"#/components/schemas/${unwrapAndSanitizedSurfaceName(p.surface)}"))
             },
             allowEmptyValue = if (p.getDefaultValue.nonEmpty) Some(true) else None
           )
         } else {
-          ParameterRef(s"#/components/parameters/${sanitizedSurfaceName(p.surface)}")
+          ParameterRef(s"#/components/parameters/${unwrapAndSanitizedSurfaceName(p.surface)}")
         }
       }
 
@@ -319,7 +327,7 @@ private[openapi] object OpenAPIGenerator extends LogSupport {
           )
         )
       case s: Surface if useRef =>
-        SchemaRef(`$ref` = s"#/components/schemas/${sanitizedSurfaceName(s)}")
+        SchemaRef(`$ref` = s"#/components/schemas/${unwrapAndSanitizedSurfaceName(s)}")
       case g: Surface if g.params.length > 0 =>
         // Use ListMap for preserving parameter orders
         val b = ListMap.newBuilder[String, SchemaOrRef]

@@ -86,11 +86,52 @@ private[openapi] object OpenAPIGenerator extends LogSupport {
     }
   }
 
+  private def findNonPrimitiveTypes(s: Surface, seen: Set[Surface]): Set[Surface] = {
+
+    var seen = Set.empty[Surface]
+
+    def loop(x: Surface): Set[Surface] = {}
+
+    if (seen.contains(s)) {
+      Set.empty
+    } else {
+      s match {
+        case s if s.isPrimitive =>
+          Set.empty
+        case r: Surface if Router.isHttpResponse(r) =>
+          // Do not register HTTP raw response (without explicit type)
+          Set.empty
+        case o: OptionSurface =>
+          findNonPrimitiveTypes(o.elementSurface, seen + s)
+        case a: ArraySurface =>
+          findNonPrimitiveTypes(a.elementSurface, seen + s)
+        case f: Surface if Router.isFuture(f) =>
+          findNonPrimitiveTypes(Router.unwrapFuture(f), seen + s)
+        case s: Surface =>
+          Set(s) ++ s.typeArgs.map(findNonPrimitiveTypes(_, seen + s)).reduce(_ ++ _)
+      }
+    }
+  }
+
   private[openapi] def buildFromRouter(router: Router, config: OpenAPIGeneratorConfig): OpenAPI = {
     val referencedSchemas = Map.newBuilder[String, SchemaOrRef]
 
+    /**
+      * Register a component for creating a reference link
+      */
+    def registerComponent(s: Surface): Unit = {
+      s match {
+        case s if isPrimitiveTypeFamily(s) =>
+        // Do not register schema
+        case _ =>
+          referencedSchemas += unwrapAndSanitizedSurfaceName(s) -> getOpenAPISchema(s, useRef = false, Set.empty)
+      }
+    }
+
     val paths = for (route <- router.routes) yield {
       val routeAnalysis = RouteAnalyzer.analyzeRoute(route)
+      routeAnalysis.userInputParameters.map(_.surface)
+
       trace(routeAnalysis)
 
       // Replace path parameters into
@@ -131,18 +172,6 @@ private[openapi] object OpenAPIGenerator extends LogSupport {
               "application/x-msgpack" -> requestMediaType
             )
           }
-        }
-      }
-
-      /**
-        * Register a component for creating a reference link
-        */
-      def registerComponent(s: Surface): Unit = {
-        s match {
-          case s if isPrimitiveTypeFamily(s) =>
-          // Do not register schema
-          case _ =>
-            referencedSchemas += unwrapAndSanitizedSurfaceName(s) -> getOpenAPISchema(s, useRef = false, Set.empty)
         }
       }
 

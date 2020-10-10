@@ -5,6 +5,9 @@ addSbtPlugin("org.scalameta"      % "sbt-scalafmt"             % "2.4.2")
 addSbtPlugin("org.portable-scala" % "sbt-scalajs-crossproject" % "1.0.0")
 addSbtPlugin("com.eed3si9n"       % "sbt-buildinfo"            % "0.10.0")
 
+// For shading airframe-finagle
+addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "0.15.0")
+
 addDependencyTreePlugin
 
 // For Scala.js

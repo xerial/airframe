@@ -650,22 +650,75 @@ lazy val grpc =
 
 lazy val finagle =
   project
+    .enablePlugins(AssemblyPlugin)
     .in(file("airframe-http-finagle"))
     .settings(buildSettings)
     .settings(
       name := "airframe-http-finagle",
       description := "REST API binding for Finagle",
-      // Finagle doesn't support Scala 2.13 yet
       libraryDependencies ++= Seq(
         "com.twitter" %% "finagle-http"        % FINAGLE_VERSION,
         "com.twitter" %% "finagle-netty4-http" % FINAGLE_VERSION,
-        "com.twitter" %% "finagle-netty4"      % FINAGLE_VERSION,
-        "com.twitter" %% "finagle-core"        % FINAGLE_VERSION,
         // Redirecting slf4j log in Finagle to airframe-log
         "org.slf4j" % "slf4j-jdk14" % SLF4J_VERSION
       )
     )
     .dependsOn(httpJVM, airframeMacrosJVMRef, airspecRefJVM % Test)
+
+// Exclude Scala library other than scala-parser-combinators
+def isShadeExcludeTarget(file: File): Boolean =
+  Seq(
+    "scala-actors",
+    "scala-compiler",
+    "scala-continuations",
+    "scala-library",
+    "scala-collection-compat",
+    "scala-parser-combinators",
+    "scala-reflect",
+    "scala-swing",
+    "scala-xml",
+    "airframe-",
+    "javax",
+    "jsr305",
+    "slf4j-"
+  ) exists { x =>
+    file.getName.contains(x)
+  }
+
+lazy val finagleShaded =
+  project
+    .enablePlugins(AssemblyPlugin)
+    .in(file("airframe-http-finagle-shaded"))
+    .settings(
+      name := "airframe-http-finagle-shaded",
+      libraryDependencies ++= Seq(
+        "com.twitter" %% "finagle-http"        % FINAGLE_VERSION,
+        "com.twitter" %% "finagle-netty4-http" % FINAGLE_VERSION
+      ),
+      assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false),
+      assemblyMergeStrategy in assembly := {
+        case PathList("META-INF", xs @ _*) => MergeStrategy.first
+        case x =>
+          val oldStrategy = (assemblyMergeStrategy in assembly).value
+          oldStrategy(x)
+      },
+      assemblyExcludedJars in assembly := {
+        val cp = (fullClasspath in assembly).value
+        cp.filter { x =>
+          isShadeExcludeTarget(x.data)
+        }
+      },
+      assemblyShadeRules in assembly := Seq(
+        ShadeRule
+          .rename(
+            "io.netty.**"              -> "wvlet.airframe.http.finagle.shaded.@0",
+            "com.fasterxml.jackson.**" -> "wvlet.airframe.http.finagle.shaded.@0",
+            "org.**"                   -> "wvlet.airframe.http.finagle.shaded.@0",
+            "com.twitter.**"           -> "@0",
+            "com.**"                   -> "wvlet.airframe.http.finagle.shaded.@0"
+          ).inAll
+      )
+    )
 
 lazy val okhttp =
   project

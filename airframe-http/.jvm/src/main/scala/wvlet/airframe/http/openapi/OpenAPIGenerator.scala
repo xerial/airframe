@@ -86,31 +86,35 @@ private[openapi] object OpenAPIGenerator extends LogSupport {
     }
   }
 
-  private def findNonPrimitiveTypes(s: Surface, seen: Set[Surface]): Set[Surface] = {
-
+  private def findNonPrimitiveTypes(s: Surface): Set[Surface] = {
     var seen = Set.empty[Surface]
 
-    def loop(x: Surface): Set[Surface] = {}
-
-    if (seen.contains(s)) {
-      Set.empty
-    } else {
-      s match {
-        case s if s.isPrimitive =>
-          Set.empty
-        case r: Surface if Router.isHttpResponse(r) =>
-          // Do not register HTTP raw response (without explicit type)
-          Set.empty
-        case o: OptionSurface =>
-          findNonPrimitiveTypes(o.elementSurface, seen + s)
-        case a: ArraySurface =>
-          findNonPrimitiveTypes(a.elementSurface, seen + s)
-        case f: Surface if Router.isFuture(f) =>
-          findNonPrimitiveTypes(Router.unwrapFuture(f), seen + s)
-        case s: Surface =>
-          Set(s) ++ s.typeArgs.map(findNonPrimitiveTypes(_, seen + s)).reduce(_ ++ _)
+    def loop(x: Surface): Set[Surface] = {
+      if (seen.contains(s)) {
+        Set.empty
+      } else {
+        seen += x
+        s match {
+          case s if s.isPrimitive =>
+            Set.empty
+          case r: Surface if Router.isHttpResponse(r) =>
+            // Do not register HTTP raw response (without explicit type)
+            Set.empty
+          case o: OptionSurface =>
+            loop(o.elementSurface)
+          case a: ArraySurface =>
+            loop(a.elementSurface)
+          case f: Surface if Router.isFuture(f) =>
+            loop(Router.unwrapFuture(f))
+          case s: Surface if Router.isFinagleReader(s) =>
+            loop(s.typeArgs(0))
+          case s: Surface =>
+            Set(s) ++ s.typeArgs.map(loop(_)).flatten.toSet
+        }
       }
     }
+
+    loop(s)
   }
 
   private[openapi] def buildFromRouter(router: Router, config: OpenAPIGeneratorConfig): OpenAPI = {
@@ -130,9 +134,13 @@ private[openapi] object OpenAPIGenerator extends LogSupport {
 
     val paths = for (route <- router.routes) yield {
       val routeAnalysis = RouteAnalyzer.analyzeRoute(route)
-      routeAnalysis.userInputParameters.map(_.surface)
-
       trace(routeAnalysis)
+
+      val inputAndOutputTypes =
+        (routeAnalysis.userInputParameters.map(_.surface) ++ Seq(route.returnTypeSurface)).distinct
+      val nonPrimitiveTypes = inputAndOutputTypes.map(findNonPrimitiveTypes(_)).flatten.toSet
+
+      info(s"non-primitive types: ${nonPrimitiveTypes}")
 
       // Replace path parameters into
       val path = "/" + route.pathComponents

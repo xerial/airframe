@@ -86,15 +86,15 @@ private[openapi] object OpenAPIGenerator extends LogSupport {
     }
   }
 
-  private def findNonPrimitiveTypes(s: Surface): Set[Surface] = {
+  private def findNonPrimitiveTypes(input: Surface): Set[Surface] = {
     var seen = Set.empty[Surface]
 
     def loop(x: Surface): Set[Surface] = {
-      if (seen.contains(s)) {
+      if (seen.contains(x)) {
         Set.empty
       } else {
         seen += x
-        s match {
+        x match {
           case s if s.isPrimitive =>
             Set.empty
           case r: Surface if Router.isHttpResponse(r) =>
@@ -104,17 +104,19 @@ private[openapi] object OpenAPIGenerator extends LogSupport {
             loop(o.elementSurface)
           case a: ArraySurface =>
             loop(a.elementSurface)
+          case s: Surface if s.isSeq =>
+            loop(s.typeArgs(0))
           case f: Surface if Router.isFuture(f) =>
             loop(Router.unwrapFuture(f))
           case s: Surface if Router.isFinagleReader(s) =>
             loop(s.typeArgs(0))
           case s: Surface =>
-            Set(s) ++ s.typeArgs.map(loop(_)).flatten.toSet
+            Set(s) ++ s.typeArgs.flatMap(loop(_)).toSet
         }
       }
     }
 
-    loop(s)
+    loop(input)
   }
 
   private[openapi] def buildFromRouter(router: Router, config: OpenAPIGeneratorConfig): OpenAPI = {
@@ -132,16 +134,20 @@ private[openapi] object OpenAPIGenerator extends LogSupport {
       }
     }
 
-    val paths = for (route <- router.routes) yield {
+    // Analyze all routes
+    val analysisResults = router.routes.map { route =>
       val routeAnalysis = RouteAnalyzer.analyzeRoute(route)
       trace(routeAnalysis)
-
       val inputAndOutputTypes =
         (routeAnalysis.userInputParameters.map(_.surface) ++ Seq(route.returnTypeSurface)).distinct
-      val nonPrimitiveTypes = inputAndOutputTypes.map(findNonPrimitiveTypes(_)).flatten.toSet
+      val nonPrimitiveTypes = inputAndOutputTypes.flatMap(findNonPrimitiveTypes(_)).toSet
 
-      info(s"non-primitive types: ${nonPrimitiveTypes}")
+      trace(s"non-primitive types: ${nonPrimitiveTypes.mkString(", ")}")
+      nonPrimitiveTypes.foreach(registerComponent(_))
+      (route, routeAnalysis)
+    }
 
+    val paths = for ((route, routeAnalysis) <- analysisResults) yield {
       // Replace path parameters into
       val path = "/" + route.pathComponents
         .map { p =>

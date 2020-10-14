@@ -23,11 +23,12 @@ object SimpleOpenAPITest extends AirSpec {
   @RPC
   trait MyService {
     def hello(person: Person): String
+    def helloStreaming(message: String): Seq[Person]
   }
 
   test("yaml") {
     val r    = Router.of[MyService]
     val yaml = OpenAPI.ofRouter(r).toYAML
-    debug(yaml)
+    //debug(yaml)
   }
 }
